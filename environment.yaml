@@ -1,0 +1,19 @@
+name: probeshiftr
+channels:
+  - bioconda
+  - defaults
+  - biobuilds
+dependencies:
+  - openjdk
+  - r-base=4.2.1
+  - r-dplyr
+  - r-readr
+  - r-data.table
+  - r-tidyr
+  - r-seqinr
+  - r-ggplot2
+  - bioconductor-rtracklayer
+  - bioconductor-genomicranges
+  - bioconductor-iranges
+  - bedtools=2.30.0
+  - blat=35
