@@ -27,23 +27,26 @@ public class Rinterface {
 	private String[] parameterList;
 	
 	
-	public Rinterface(String R_bin_path, String Rscript_path, String anno_file, String blat_dir, 
+	public Rinterface(String R_bin_path, String Rscript_path, String blat_dir, 
 					   String outDir, String plot_dir, String oilgo_fasta_file,
-					   int oligo_length, String target_fasta_file) {
+					   int oligo_length, String target_fasta_file, String... anno_file) {
 		
-		this.parameterList = new String[9];
 		
-
+		if(anno_file[0] != null) {
+			this.parameterList = new String[9];
+			this.parameterList[8] =  anno_file[0];
+		}else {
+			this.parameterList = new String[8];
+		}
 		
 		this.parameterList[0] =  R_bin_path;
 		this.parameterList[1] =  Rscript_path;
-		this.parameterList[2] =  anno_file;
-		this.parameterList[3] =  blat_dir;
-		this.parameterList[4] =  outDir;
-		this.parameterList[5] =  plot_dir;
-		this.parameterList[6] =  oilgo_fasta_file;
-		this.parameterList[7] =  String.valueOf(oligo_length);
-		this.parameterList[8] =  target_fasta_file;
+		this.parameterList[2] =  blat_dir;
+		this.parameterList[3] =  outDir;
+		this.parameterList[4] =  plot_dir;
+		this.parameterList[5] =  oilgo_fasta_file;
+		this.parameterList[6] =  String.valueOf(oligo_length);
+		this.parameterList[7] =  target_fasta_file;
 		
 	}
 	
@@ -76,7 +79,9 @@ public class Rinterface {
 		}
 
 		this.parameterList[1] = tempScriptFile.getAbsolutePath();
-
+		
+		System.out.println("Path to script: " + this.parameterList[1]);
+		
 		ProcessBuilder pb = new ProcessBuilder(this.parameterList);
 
 		System.out.println(Arrays.toString(this.parameterList));
@@ -95,7 +100,7 @@ public class Rinterface {
 		int exitCode = Rproc.waitFor();
 
 		// Clean up the temporary file
-		tempScriptFile.delete();
+//		tempScriptFile.delete();
 
 		return (exitCode);
 	}	
