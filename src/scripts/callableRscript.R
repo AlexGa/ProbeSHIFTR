@@ -16,14 +16,20 @@ genesFromOligos <- function(x) {
 
 args <- commandArgs(trailingOnly = TRUE)
 
-anno_file <- args[1] # gtf annotation compressed or uncompressed
-blat_dir <- args[2] # directory containing the BLAT output created from java framework
-outDir <- args[3] # output directory containing the final oligo sets
-plot_dir <- args[4] # directory containing the analysis plots for different thresholds
+blat_dir <- args[1] # directory containing the BLAT output created from java framework
+outDir <- args[2] # output directory containing the final oligo sets
+plot_dir <- args[3] # directory containing the analysis plots for different thresholds
 
-oligo_fasta_file <- args[5] # fasta file containing oligo sequences from java program
-oligo_length <- as.numeric(args[6]) # length of oligos -> infer from sequence length!
-target_fasta_file <- args[7] # fasta file containing the RNA target sequences
+oligo_fasta_file <- args[4] # fasta file containing oligo sequences from java program
+oligo_length <- as.numeric(args[5]) # length of oligos -> infer from sequence length!
+target_fasta_file <- args[6] # fasta file containing the RNA target sequences
+
+anno_file <- NULL
+if(length(args) > 6){
+  
+  anno_file <- args[7] # gtf annotation compressed or uncompressed
+}
+
 
 # Not yet implemented
 ignored_homologous_regions <- c()
@@ -39,11 +45,13 @@ if(length(args) > 7){
 
 # GTF annotation file
 anno <- NULL
-if(!file.exists(anno_file)){
-  
-  anno <- rtracklayer::import(anno_file)
-  print("Using transcript annotation file and filter based on mature spliced transcripts...")
-  
+if(!is.null(anno_file)){
+  if(file.exists(anno_file)){
+    
+    anno <- rtracklayer::import(anno_file)
+    print("Using transcript annotation file and filter based on mature spliced transcripts...")
+    
+  }
 }
 # Read target RNA sequences from fasta 
 target_seqs <- seqinr::read.fasta(target_fasta_file)
