@@ -16,22 +16,20 @@ genesFromOligos <- function(x) {
 
 args <- commandArgs(trailingOnly = TRUE)
 
-# args[1] <- "/Users/alg22/LRIB/ProbeDesigner/data/hg38/Homo_sapiens.GRCh38.106.gtf.gz"
-# args[2] <- "/Users/alg22/LRIB/Jens/Oligos_Cdifficile/OligoDesign/TEST_targets_antisense_50/BLAT_results"
-# args[3] <- "/Users/alg22/LRIB/Jens/Oligos_Cdifficile/OligoDesign/TEST_targets_antisense_50/final_oligo_designs"
-# args[4] <- "/Users/alg22/LRIB/Jens/Oligos_Cdifficile/OligoDesign/TEST_targets_antisense_50/plots_final_oligo_designs"
-# args[5] <- "/Users/alg22/LRIB/Jens/Oligos_Cdifficile/OligoDesign/TEST_targets_antisense_50/Unfiltered_oligos_antisense_50nt.fa"
-# args[6] <- 50
-# args[7] <- "/Users/alg22/LRIB/Jens/Oligos_Cdifficile/RaiA_long_nc70.fa"
+blat_dir <- args[1] # directory containing the BLAT output created from java framework
+outDir <- args[2] # output directory containing the final oligo sets
+plot_dir <- args[3] # directory containing the analysis plots for different thresholds
 
-anno_file <- args[1] # gtf annotation compressed or uncompressed
-blat_dir <- args[2] # directory containing the BLAT output created from java framework
-outDir <- args[3] # output directory containing the final oligo sets
-plot_dir <- args[4] # directory containing the analysis plots for different thresholds
+oligo_fasta_file <- args[4] # fasta file containing oligo sequences from java program
+oligo_length <- as.numeric(args[5]) # length of oligos -> infer from sequence length!
+target_fasta_file <- args[6] # fasta file containing the RNA target sequences
 
-oligo_fasta_file <- args[5] # fasta file containing oligo sequences from java program
-oligo_length <- as.numeric(args[6]) # length of oligos -> infer from sequence length!
-target_fasta_file <- args[7] # fasta file containing the RNA target sequences
+anno_file <- NULL
+if(length(args) > 6){
+  
+  anno_file <- args[7] # gtf annotation compressed or uncompressed
+}
+
 
 # Not yet implemented
 ignored_homologous_regions <- c()
@@ -47,11 +45,13 @@ if(length(args) > 7){
 
 # GTF annotation file
 anno <- NULL
-if(!file.exists(anno_file)){
-  
-  anno <- rtracklayer::import(anno_file)
-  print("Using transcript annotation file and filter based on mature spliced transcripts...")
-  
+if(!is.null(anno_file)){
+  if(file.exists(anno_file)){
+    
+    anno <- rtracklayer::import(anno_file)
+    print("Using transcript annotation file and filter based on mature spliced transcripts...")
+    
+  }
 }
 # Read target RNA sequences from fasta 
 target_seqs <- seqinr::read.fasta(target_fasta_file)
@@ -158,7 +158,7 @@ measures_tbl <- data.frame(matrix(ncol = 11, nr = 0))
 colnames(measures_tbl) <- c("gene_name", "probe_id", "mismatches", "filtered", "coverage", "#gaps", "cum_gaps", "min_gaps", "max_gaps", "mean_gaps", "sd_gaps")
 row_count <- 1
 
-for(match_threshold in c(seq(0, oligo_length, 5), oligo_length)){
+for(match_threshold in seq(0, oligo_length, 5)){
   
   print(paste0("Caculate oligo design based on threshold: ", match_threshold))
   
