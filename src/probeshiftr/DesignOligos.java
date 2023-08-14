@@ -60,7 +60,7 @@ public class DesignOligos {
 		String toolName = "java -jar ProbeSHIFTR.jar";
 
 		// oligo length and parallelization
-		int oligo_length = 50;
+		int oligo_length = 0;
 		int threads = 1;
 		
 		// BLAT prarameters
@@ -125,6 +125,17 @@ public class DesignOligos {
 				formatter.printHelp(toolName, options, true);
 				System.exit(0);
 				
+			}
+			
+			if(line.hasOption("l")) {
+				
+				oligo_length = Integer.parseInt(line.getOptionValue("l"));
+			
+			}else {
+				
+				System.err.println("Please define the length of the desired oligo sequences.");
+				formatter.printHelp(toolName, options, true);
+				System.exit(0);
 			}
 			
 			if (line.hasOption("blat")) {
@@ -487,7 +498,7 @@ public class DesignOligos {
 		/** Run Rscript to calculate finale oligo sets and create analysis plots */
 		
 		   
-		Rinterface blProcess = new Rinterface(R_bin_path, path_to_Rscript, transcript_annotation_file, blat_dir, fasta_out_dir, plot_dir, oligo_fasta_file, oligo_length, target_fasta_file);
+		Rinterface blProcess = new Rinterface(R_bin_path, path_to_Rscript, blat_dir, fasta_out_dir, plot_dir, oligo_fasta_file, oligo_length, target_fasta_file, transcript_annotation_file);
 		blProcess.runR();
 	}
 
