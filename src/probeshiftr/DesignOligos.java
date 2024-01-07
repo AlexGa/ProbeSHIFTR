@@ -30,11 +30,12 @@ public class DesignOligos {
 
 		Options options = new Options();
 
-		options.addOption("t", "target-fasta", true, "fasta containing target sequence for antisense oligos");
+		options.addOption("t", "target-fasta", true, "fasta containing target sequence(s)");
 		options.addOption("o", "output-dir", true, "directory to store oligo designs and temporary files (e.g. BLAT results)");
 		options.addOption("d", "database-fasta", true, "database sequence file for BLAT searches (e.g. genome.fasta)");
 		options.addOption("D", "database-dir", true, "directory containing fasta files for BLAT searches");
 		options.addOption("l", "oligo-length", true, "length of antisense oligos");
+		options.addOption("s", "get-sense", false, "create sense oligos (Default: false)");
 		
 		options.addOption("match", "min-match", true, "minimal matches for BLAT searches (Default: 1)");
 		options.addOption("score", "min-score", true, "mininmal score for BLAT searches (Default: 10)");
@@ -48,10 +49,15 @@ public class DesignOligos {
 		
 		options.addOption("pbl", "polybase-length", true, "relative length of polybases within oligo (Default: 0.8)");
 		options.addOption("rbl", "repeat-length-polybases", true, "length of polybase repreats within sequences (Default: 15)");
+		options.addOption("cw", "check-within-target", false, "check for homologies within target sequence (Default: false)");
+		options.addOption("irk", "include-repetitive-kmers", false, "include repetitive kmers (Default: false)");
+		options.addOption("f", "fragment-size", true, "if gaps between oligos are longer than the fragment size then oligos with too many off-targets are used to fill these gaps (Default: 200)");
 		
-		options.addOption("g", "gtf-file", true, "gtf/gff file containing regions to ignore if designed oligo shows overlap");
+		options.addOption("g", "gtf-files", true, "gtf/gff annotation files to consider protein-coding exonic off-target regions (separated by semicolon without spaces e.g. anno1.gtf;anno2.gtf)");
+		options.addOption("p", "processes", true, "number of parallel threads/processes to run BLAT comparisons");
 		options.addOption("blat", "blat-path", true, "path to BLAT executable (Default: assumed to be in the environmental variable PATH)");
 		options.addOption("rscript", "rscript-path", true, "path to Rscript executable (Default: assumed to be in the environmental variable PATH)");
+		options.addOption("log", "log-file", false, "write log file to evaluate sequence complexity filters (Default: false)");
 		options.addOption("h", "help", false, "print this message");
 
 		CommandLineParser parser = new DefaultParser();
@@ -62,6 +68,10 @@ public class DesignOligos {
 		// oligo length and parallelization
 		int oligo_length = 0;
 		int threads = 1;
+		boolean do_sense = false;
+		boolean check_within = false;
+		boolean include_rep_kmers = false;
+		boolean write_log = false;
 		
 		// BLAT prarameters
 		int minMatch = 1; 
@@ -78,8 +88,7 @@ public class DesignOligos {
 		String bases2Filter = "ACTG";
 		double relativePolyBaseLength = 0.8;
 		int lengthPolyBaseRepeats = 15; 
-		
-		
+		int fragment_size = 200;
 		
 		String target_fasta_file = null; 
 		String genome_database_fasta_file = null; 
@@ -89,10 +98,10 @@ public class DesignOligos {
 		String genome_database_fasta_dir = null; 
 
 		
-		String path_to_Rscript = "/scripts/callableRscript.R";
+		String path_to_Rscript = "/callableRscript.R";
 		
 		// only necessary if filtering on transcripts not on subsequences in the genome
-		String transcript_annotation_file = null; 
+		String transcript_annotation_files = null; 
 		
 		String plot_dir = null; 
 		String fasta_out_dir = null; 
@@ -282,6 +291,12 @@ public class DesignOligos {
 				maxRepeatPercentage = Double.parseDouble(line.getOptionValue("r"));
 				
 			}
+
+			if (line.hasOption("f")) {
+				
+				fragment_size = Integer.parseInt(line.getOptionValue("f"));
+				
+			}
 			
 			if (line.hasOption("pbl")) {
 				
@@ -301,10 +316,57 @@ public class DesignOligos {
 				
 			}
 			
+
+			if (line.hasOption("s")) {
+				
+				do_sense = true;
+				
+			}
+
+
+			if (line.hasOption("log")) {
+				
+				write_log = true;
+				
+			}
+
+			if (line.hasOption("cw")) {
+				
+				check_within = true;
+				
+			}
+			
+			if (line.hasOption("irk")) {
+				
+				include_rep_kmers = true;
+				
+			}
+
+			
 			if (line.hasOption("g")) {
 				
-				transcript_annotation_file = line.getOptionValue("g");
+				transcript_annotation_files = line.getOptionValue("g");
 				
+				String[] tx_anno_file_arr = transcript_annotation_files.split(";");
+				
+				for(String single_anno_filename: tx_anno_file_arr) {
+					
+					File single_anno_file = new File(single_anno_filename);
+					
+					if(!single_anno_file.exists()) {
+						
+						System.err.println("Could not find " + single_anno_filename +
+								 		   ". Please check the path of your annotation files.");
+						formatter.printHelp(toolName, options, true);
+						System.exit(0);
+					}
+				}
+				
+			}
+			
+			if(line.hasOption("p")) {
+				
+				threads = Integer.parseInt(line.getOptionValue("p"));
 			}
 			
 		}catch (ParseException exp) {
@@ -322,8 +384,9 @@ public class DesignOligos {
 			System.out.println("Repeats are masked by upper cases.");
 		
 		}
-		
+
 		String oligo_fasta_file = super_output_dir + File.separatorChar + "Unfiltered_oligos_antisense_" + oligo_length + "nt.fa";
+		String log_file = super_output_dir + File.separatorChar + "All_kmer_oligos_antisense_" + oligo_length + "nt.log";
 				
 		HashMap<String, Sequence> seqHash = SeqIO.readFastaGenom(target_fasta_file);
 	
@@ -336,6 +399,15 @@ public class DesignOligos {
 		int[] filtered = new int[seqHash.keySet().size()];
 		
 		ArrayList<HashMap<Integer, Sequence>> probeSet = new ArrayList<HashMap<Integer, Sequence>>();
+		
+		BufferedWriter out_log = null;
+		
+		if(write_log) {
+			
+			out_log = new BufferedWriter(new FileWriter(log_file));
+			out_log.write("seq\tkmer\tstart\tend\tRepeatFilter\tRepeatFilterN\tComplexFilter\tPolyBaseFilter\n");
+		}
+		
 		
 		int set_i = 0;
 		for(String seq: seqHash.keySet()) {
@@ -356,24 +428,78 @@ public class DesignOligos {
 				boolean complex = cf.filterOligo(kmer);
 				boolean poly = pf.filterOligo(kmer);
 //				boolean lowComplex = lf.filterOligo(kmer);
-				
+			
 				boolean filterOligo = repeat || repeatN || complex || poly;// || lowComplex;
 				
 				if(filterOligo) {
 
 					filtered[set_i]++;
-	
+					
 				}else {
 					
-					int startIndex = faSeq.indexOf(kmer, 0);
-					Sequence kmerSeq = new Sequence(id, kmer);
+					int startIndex = -1 ;
+					
+					if(include_rep_kmers) {
+						
+						while((startIndex = faSeq.indexOf(kmer, startIndex +1)) != -1) {
 
-					String revComp = kmerSeq.getReverseComplement().getSeq();
+							Sequence kmerSeq = new Sequence(id, kmer);
+
+							String final_oligo = null; 
+							String kmerId = null;
+
+							if(do_sense) {
+
+								final_oligo = kmerSeq.getSeq();
+								kmerId = "Probe_Sense_" + id + "_" + startIndex + "_" + (startIndex + oligo_length - 1);
+
+								
+							}else {
+								
+								final_oligo = kmerSeq.getReverseComplement().getSeq();
+								kmerId = "Probe_Antisense_" + id + "_" + startIndex + "_" + (startIndex + oligo_length - 1);
+
+							}
+							
+							if(write_log) {
+								out_log.write(seq + "\t" + kmer + "\t" + startIndex + "\t" + (startIndex + oligo_length - 1) + "\t"+ repeat + "\t" + repeatN + "\t" + complex + "\t" + poly + "\n");
+							}
+							
+							Sequence kmerProbe = new Sequence(kmerId, final_oligo);
+							
+							kmerSet.put(startIndex, kmerProbe);
+						}
+					}else {
+						
+						startIndex = faSeq.indexOf(kmer, 0);
+
+						Sequence kmerSeq = new Sequence(id, kmer);
+
+						String final_oligo = null; 
+						String kmerId = null;
+
+						if(do_sense) {
+
+							final_oligo = kmerSeq.getSeq();
+							kmerId = "Probe_Sense_" + id + "_" + startIndex + "_" + (startIndex + oligo_length - 1);
+								
+						}else {
+								
+							final_oligo = kmerSeq.getReverseComplement().getSeq();
+							kmerId = "Probe_Antisense_" + id + "_" + startIndex + "_" + (startIndex + oligo_length - 1);
+
+						}
+						
+						if(write_log) {
+							out_log.write(seq + "\t" + kmer + "\t" + startIndex + "\t" + (startIndex + oligo_length - 1) + "\t"+ repeat + "\t" + repeatN + "\t" + complex + "\t" + poly + "\n");
+						}
+						
+						Sequence kmerProbe = new Sequence(kmerId, final_oligo);
+							
+						kmerSet.put(startIndex, kmerProbe);
+					}
 					
-					String kmerId = "Probe_Antisense_" + id + "_" + startIndex + "_" + (startIndex + oligo_length - 1);
-					Sequence kmerProbe = new Sequence(kmerId, revComp);
 					
-					kmerSet.put(startIndex, kmerProbe);
 				}
 				
 			}
@@ -383,6 +509,9 @@ public class DesignOligos {
 			set_i++;
 		}
 		
+		if(write_log) {
+			out_log.close();
+		}
 		/**
 		 *  Write probe sequences into fasta file 
 		 * */
@@ -410,9 +539,9 @@ public class DesignOligos {
 		}
 		out.close();
 		
-		System.out.println("starting BLAT alignment");
+		System.out.println("Starting BLAT alignment using " + threads + " parallel processes...");
 		
-		// create a pool of threads, 10 max jobs will execute in parallel
+		// create a pool of threads
 		ExecutorService threadPool = Executors.newFixedThreadPool(threads);
 		 
 		// submit jobs to be executing by the pool
@@ -460,14 +589,15 @@ public class DesignOligos {
 				
 				FilenameUtils.getBaseName(chrFile);
 				
-				String outputFile = blat_dir + File.separator + FilenameUtils.getBaseName(chrFile);
-				outputFile = outputFile.replace(".fa", "_BLAT_oligo.pls");
+				String outputFile = blat_dir + File.separator + FilenameUtils.getBaseName(chrFile) + "_BLAT_oligo.pls";
 				
 				PerformBLAT blProcess = new PerformBLAT(blatPath, minMatch, minScore, chrFile, oligo_fasta_file, outputFile);
 			
 				Callable<Void> worker = new BLATCallable(blProcess);
 				Future<Void> submit = threadPool.submit(worker);
 				submitList.add(submit);
+				
+				//System.out.println(outputFile);
 			}
 			
 		}
@@ -487,8 +617,9 @@ public class DesignOligos {
 			 
 			  threadPool.shutdown();
 
-			  System.out.println("Finished!");
-			  System.out.println("Output files saved at: " + blat_dir);
+			 Thread.sleep(10000);
+			 System.out.println("Finished!");
+			 System.out.println("BLAT results stored at: " + blat_dir);
 
 			  
 			} catch (InterruptedException e) {
@@ -497,8 +628,9 @@ public class DesignOligos {
 		
 		/** Run Rscript to calculate finale oligo sets and create analysis plots */
 		
-		   
-		Rinterface blProcess = new Rinterface(R_bin_path, path_to_Rscript, blat_dir, fasta_out_dir, plot_dir, oligo_fasta_file, oligo_length, target_fasta_file, transcript_annotation_file);
+		Rinterface blProcess = new Rinterface(R_bin_path, path_to_Rscript, blat_dir, fasta_out_dir, plot_dir, 
+											  oligo_fasta_file, oligo_length, target_fasta_file, check_within, fragment_size, 
+											  transcript_annotation_files);
 		blProcess.runR();
 	}
 
