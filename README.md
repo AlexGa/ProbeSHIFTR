@@ -31,25 +31,38 @@ Acitvate ProbeSHIFTR environment:
 ## Usage
 
 ```
-java -jar ProbeSHIFTR.jar [-bf <arg>] [-blat <arg>] [-d <arg>] [-D <arg>] 
-	   					  [-g <arg>] [-h] [-l <arg>] [-match <arg>] [-n <arg>] 
-	   					  [-nm <arg>] [-o <arg>] [-pbl <arg>] [-r <arg>] 
-	   					  [-rbl <arg>] [-rmf <arg>] [-rscript <arg>] 
-	   					  [-score <arg>] [-t <arg>]
+usage: java -jar ProbeSHIFTR.jar [-bf <arg>] [-blat <arg>] [-cw] [-d
+       <arg>] [-D <arg>] [-f <arg>] [-g <arg>] [-h] [-irk] [-l <arg>]
+       [-log] [-match <arg>] [-n <arg>] [-nm <arg>] [-o <arg>] [-p <arg>]
+       [-pbl <arg>] [-r <arg>] [-rbl <arg>] [-rmf <arg>] [-rscript <arg>]
+       [-s] [-score <arg>] [-t <arg>]
  -bf,--bases2filter <arg>               bases to filter for polybases in
                                         oligos (Default: ACGT)
  -blat,--blat-path <arg>                path to BLAT executable (Default:
                                         assumed to be in the environmental
                                         variable PATH)
+ -cw,--check-within-target              check for homologies within target
+                                        sequence (Default: false)
  -d,--database-fasta <arg>              database sequence file for BLAT
                                         searches (e.g. genome.fasta)
  -D,--database-dir <arg>                directory containing fasta files
                                         for BLAT searches
- -g,--gtf-file <arg>                    gtf/gff file containing regions to
-                                        ignore if designed oligo shows
-                                        overlap
+ -f,--fragment-size <arg>               if gaps between oligos are longer
+                                        than the fragment size then oligos
+                                        with too many off-targets are used
+                                        to fill these gaps (Default: 200)
+ -g,--gtf-files <arg>                   gtf/gff annotation files to
+                                        consider protein-coding exonic
+                                        off-target regions (separated by
+                                        semicolon without spaces e.g.
+                                        anno1.gtf;anno2.gtf)
  -h,--help                              print this message
+ -irk,--include-repetitive-kmers        include repetitive kmers (Default:
+                                        false)
  -l,--oligo-length <arg>                length of antisense oligos
+ -log,--log-file                        write log file to evaluate
+                                        sequence complexity filters
+                                        (Default: false)
  -match,--min-match <arg>               minimal matches for BLAT searches
                                         (Default: 1)
  -n,--include-n <arg>                   include N in repeat filtering
@@ -59,6 +72,9 @@ java -jar ProbeSHIFTR.jar [-bf <arg>] [-blat <arg>] [-d <arg>] [-D <arg>]
  -o,--output-dir <arg>                  directory to store oligo designs
                                         and temporary files (e.g. BLAT
                                         results)
+ -p,--processes <arg>                   number of parallel
+                                        threads/processes to run BLAT
+                                        comparisons
  -pbl,--polybase-length <arg>           relative length of polybases
                                         within oligo (Default: 0.8)
  -r,--max-repeats <arg>                 maximal percetage of repeats
@@ -71,8 +87,10 @@ java -jar ProbeSHIFTR.jar [-bf <arg>] [-blat <arg>] [-d <arg>] [-D <arg>]
  -rscript,--rscript-path <arg>          path to Rscript executable
                                         (Default: assumed to be in the
                                         environmental variable PATH)
+ -s,--get-sense                         create sense oligos (Default:
+                                        false)
  -score,--min-score <arg>               mininmal score for BLAT searches
                                         (Default: 10)
- -t,--target-fasta <arg>                fasta containing target sequence
-                                        for antisense oligos
+ -t,--target-fasta <arg>                fasta containing target
+                                        sequence(s)
 ```
