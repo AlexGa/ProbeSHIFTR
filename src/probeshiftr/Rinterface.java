@@ -9,7 +9,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 
 public class Rinterface {
 	
@@ -28,15 +27,19 @@ public class Rinterface {
 	
 	
 	public Rinterface(String R_bin_path, String Rscript_path, String blat_dir, 
-					   String outDir, String plot_dir, String oilgo_fasta_file,
-					   int oligo_length, String target_fasta_file, String... anno_file) {
+					   String outDir, String plot_dir, String oligo_fasta_file,
+					   int oligo_length, String target_fasta_file, boolean check_within, int fragment_size, String... anno_files) {
 		
 		
-		if(anno_file[0] != null) {
-			this.parameterList = new String[9];
-			this.parameterList[8] =  anno_file[0];
+		if(anno_files[0] != null) {
+			
+			this.parameterList = new String[11];
+			this.parameterList[10] = anno_files[0];
+			
 		}else {
-			this.parameterList = new String[8];
+			
+			this.parameterList = new String[10];
+		
 		}
 		
 		this.parameterList[0] =  R_bin_path;
@@ -44,17 +47,20 @@ public class Rinterface {
 		this.parameterList[2] =  blat_dir;
 		this.parameterList[3] =  outDir;
 		this.parameterList[4] =  plot_dir;
-		this.parameterList[5] =  oilgo_fasta_file;
+		this.parameterList[5] =  oligo_fasta_file;
 		this.parameterList[6] =  String.valueOf(oligo_length);
 		this.parameterList[7] =  target_fasta_file;
+		this.parameterList[8] =  String.valueOf(check_within);
+		this.parameterList[9] =  String.valueOf(fragment_size);
 		
 	}
-	
-	public int runR() throws IOException, InterruptedException {
 
+	public int runR() throws IOException, InterruptedException {
+		
 		InputStream inputStream = Rinterface.class.getResourceAsStream(this.parameterList[1]);
 		
         if (inputStream == null) {
+        	System.err.println("An error has occured during the execution of R...");
         	return(1);
         	
         }
@@ -80,17 +86,15 @@ public class Rinterface {
 
 		this.parameterList[1] = tempScriptFile.getAbsolutePath();
 		
-		System.out.println("Path to script: " + this.parameterList[1]);
-		
 		ProcessBuilder pb = new ProcessBuilder(this.parameterList);
 
-		System.out.println(Arrays.toString(this.parameterList));
+//		System.out.println(Arrays.toString(this.parameterList));
 
 		Process Rproc = pb.start();
+		
+		String line = null;
 
 		BufferedReader rStdOut = new BufferedReader(new InputStreamReader(Rproc.getInputStream()));
-
-		String line = null;
 
 		while ((line = rStdOut.readLine()) != null) {
 
@@ -100,7 +104,7 @@ public class Rinterface {
 		int exitCode = Rproc.waitFor();
 
 		// Clean up the temporary file
-//		tempScriptFile.delete();
+		tempScriptFile.delete();
 
 		return (exitCode);
 	}	
