@@ -1,5 +1,13 @@
 # ProbeSHIFTR
-Oligosequence probe design for Selective RNase-H-mediated interactome framing for target RNA regions
+
+Sequence probe design for **S**elective RNase-**H**-mediated **I**nteractome **F**raming for **T**arget **R**NA Regions (SHIFTR)
+
+### Design of oligo sequences for the publication
+
+**SHIFTR enables the unbiased identification of proteins bound to specific RNA regions in live cells**.
+
+Jens Aydin, Alexander Gabel, Sebastian Zielinski, Sabina Ganskih, Nora Schmidt, Christina R. Hartigan, Monica Schenone, Steven A. Carr, and Mathias Munschauer.
+
 
 ## Requirements
 
