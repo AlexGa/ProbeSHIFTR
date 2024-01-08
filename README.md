@@ -1,5 +1,3 @@
-[![DOI](https://zenodo.org/badge/677329264.svg)](https://zenodo.org/doi/10.5281/zenodo.10467346)
-
 # ProbeSHIFTR
 
 Sequence probe design for **S**elective RNase-**H**-mediated **I**nteractome **F**raming for **T**arget **R**NA Regions (SHIFTR)
