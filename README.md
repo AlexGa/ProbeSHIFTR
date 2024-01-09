@@ -1,6 +1,6 @@
 # ProbeSHIFTR
 
-Sequence probe design for **S**elective RNase-**H**-mediated **I**nteractome **F**raming for **T**arget **R**NA Regions (SHIFTR)
+Oligonucleotide probe designer for **S**elective RNase-**H**-mediated **I**nteractome **F**raming for **T**arget **R**NA Regions (SHIFTR)
 
 ### Design of oligo sequences for the publication
 
