@@ -28,7 +28,8 @@ public class Rinterface {
 	
 	public Rinterface(String R_bin_path, String Rscript_path, String blat_dir, 
 					   String outDir, String plot_dir, String oligo_fasta_file,
-					   int oligo_length, String target_fasta_file, boolean check_within, int fragment_size, String... anno_files) {
+					   int oligo_length, String target_fasta_file, boolean check_within, 
+					   int fragment_size, String... anno_files) {
 		
 		
 		if(anno_files[0] != null) {
@@ -55,7 +56,7 @@ public class Rinterface {
 		
 	}
 
-	public int runR() throws IOException, InterruptedException {
+	public int runR(boolean verbose) throws IOException, InterruptedException {
 		
 		InputStream inputStream = Rinterface.class.getResourceAsStream(this.parameterList[1]);
 		
@@ -85,27 +86,72 @@ public class Rinterface {
 		}
 
 		this.parameterList[1] = tempScriptFile.getAbsolutePath();
-		
-		ProcessBuilder pb = new ProcessBuilder(this.parameterList);
 
-//		System.out.println(Arrays.toString(this.parameterList));
+		int exitCode = 0;
+		 try {
+	            // Start the R process
+			 	
+	            ProcessBuilder processBuilder = new ProcessBuilder(this.parameterList);
+	            Process Rproc = processBuilder.start();
 
-		Process Rproc = pb.start();
-		
-		String line = null;
+	            if(verbose) {
+	            	
+	            	// Create readers for the standard output and error streams
+		            BufferedReader rStdOut = new BufferedReader(new InputStreamReader(Rproc.getInputStream()));
+		            BufferedReader rStdErr = new BufferedReader(new InputStreamReader(Rproc.getErrorStream()));
 
-		BufferedReader rStdOut = new BufferedReader(new InputStreamReader(Rproc.getInputStream()));
+		         // Create threads to handle the output and error streams
+		            Thread outputThread = new Thread(new Runnable() {
+		                @Override
+		                public void run() {
+		                    readStream(rStdOut, "OUTPUT (Rscript)");
+		                }
+		            });
+		            Thread errorThread = new Thread(new Runnable() {
+		                @Override
+		                public void run() {
+		                    readStream(rStdErr, "ERROR (Rscript)");
+		                }
+		            });
 
-		while ((line = rStdOut.readLine()) != null) {
+		            // Start the threads
+		            outputThread.start();
+		            errorThread.start();
+		            
+		            // Wait for the R process and threads to finish
+		            exitCode = Rproc.waitFor();
+		            outputThread.join();
+		            errorThread.join();
+		            System.out.println("R process exited with code: " + exitCode);
+		            
+	            }else {
+	            	
 
-			System.out.println(line);
-		}
+		            // Wait for the R process to complete
+		            exitCode = Rproc.waitFor();
+	            	
+	            }
+	            
+	        
 
-		int exitCode = Rproc.waitFor();
+	        } catch (IOException | InterruptedException e) {
+	            e.printStackTrace();
+	        }
 
 		// Clean up the temporary file
 		tempScriptFile.delete();
 
 		return (exitCode);
 	}	
+	
+	   private static void readStream(BufferedReader reader, String streamType) {
+	        String line;
+	        try {
+	            while ((line = reader.readLine()) != null) {
+	                System.out.println(streamType + ": " + line);
+	            }
+	        } catch (IOException e) {
+	            e.printStackTrace();
+	        }
+	    }
 }
