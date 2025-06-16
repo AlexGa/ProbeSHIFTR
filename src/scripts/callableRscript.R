@@ -1,6 +1,8 @@
-library(dplyr)
-library(readr)
-library(data.table)
+suppressWarnings({
+  library(dplyr)
+  library(readr)
+  library(data.table)
+})
 
 gaps_path <- function(x, x_end){
   
@@ -29,7 +31,6 @@ args <- commandArgs(trailingOnly = TRUE)
 blat_dir <- args[1] # directory containing the BLAT output created from java framework
 outDir <- args[2] # output directory containing the final oligo sets
 plot_dir <- args[3] # directory containing the analysis plots for different thresholds
-
 oligo_fasta_file <- args[4] # fasta file containing oligo sequences from java program
 oligo_length <- as.numeric(args[5]) # length of oligos -> inferred from sequence length
 target_fasta_file <- args[6] # fasta file containing the RNA target sequences
@@ -79,7 +80,20 @@ if(!is.null(anno_files)){
       
       print(paste0("Extracting transcript information from ",  single_anno_file, " and filter based on mature spliced transcripts..."))
       single_anno <- rtracklayer::import(single_anno_file)
-      as.data.frame(single_anno[single_anno$type %in% "exon" & single_anno$gene_biotype %in% "protein_coding"][,c("type", "transcript_id")])
+      
+      
+      if(any(grepl(pattern = "gene_biotype", x = single_anno %>% as_tibble() %>% colnames()))){
+        
+        print(paste0("Using only protein_coding transcripts based on gene_biotype entry from ", single_anno_file))
+        single_anno <- as.data.frame(single_anno[single_anno$type %in% "exon" & single_anno$gene_biotype %in% "protein_coding"][,c("type", "transcript_id")])
+        
+      }else{
+        
+        print(paste0("Using all transcripts provided by ", single_anno_file))
+        single_anno <- as.data.frame(single_anno[single_anno$type %in% "exon"][,c("type", "transcript_id")])
+        
+      }
+      single_anno
     }, simplify = F)
     
     anno_df <- do.call("rbind", anno_list)
@@ -116,8 +130,14 @@ oligo_seqs <- seqinr::read.fasta(oligo_fasta_file)
 files <- dir(blat_dir)
 
 if(length(files) > 0){
+  
   blat_df_big <- do.call("rbind", sapply(files, function(f){
-    readr::read_delim(file.path(blat_dir, f), skip = 6, col_names = F, show_col_types = FALSE, na = "")
+    
+    readr::read_delim(file.path(blat_dir, f), 
+                      skip = 6, 
+                      col_names = F, 
+                      show_col_types = FALSE, 
+                      na = "")
   }, simplify = FALSE))
   
   colnames(blat_df_big) <- c("matches","mismatch", "repmatch", "Ns", 
@@ -141,13 +161,13 @@ if(!file.exists(plot_dir)){
 
 # Remove self-matches
 blat_df_big <- blat_df_big %>% 
-               dplyr::mutate(query.chr = gsub(x = query.name, pattern = "Probe_(Antisense|Sense)_(.*)_(.*)?_(.*)", repl = "\\2"),
-                             query.start = as.numeric(gsub(x = query.name, pattern = "Probe_(Antisense|Sense)_(.*)_(.*)?_(.*)", 
-                                                           repl = "\\3")),
-                             query.end = as.numeric(gsub(x = query.name, pattern = "Probe_(Antisense|Sense)_(.*)_(.*)?_(.*)", 
-                                                         repl = "\\4")) + 1) %>%
-                dplyr::filter(!(query.chr == target.name & query.start == target.start & query.end == target.end)) %>% 
-                dplyr::select(-query.chr, -query.start, -query.end)
+  dplyr::mutate(query.chr = gsub(x = query.name, pattern = "Probe_(Antisense|Sense)_(.+)_([0-9]+)_([0-9]+)$", repl = "\\2"),
+                query.start = as.numeric(gsub(x = query.name, pattern = "Probe_(Antisense|Sense)_(.+)_([0-9]+)_([0-9]+)$", 
+                                              repl = "\\3")),
+                query.end = as.numeric(gsub(x = query.name, pattern = "Probe_(Antisense|Sense)_(.+)_([0-9]+)_([0-9]+)$", 
+                                            repl = "\\4")) + 1) %>%
+  dplyr::filter(!(query.chr == target.name & query.start == target.start & query.end == target.end)) %>% 
+  dplyr::select(-query.chr, -query.start, -query.end)
 
 blat_dt <- blat_df_big %>% as.data.table()
 blat_dt <- blat_dt[,list(target.name, target.start, target.end, strand, query.name), ]
@@ -181,12 +201,18 @@ if(!is.null(anno)){
   
   ixn <- IRanges::findOverlaps(query = probe_anno,
                                subject = anno_target)
-
+  
   blat_df <- probe_anno[unique(ixn@from)] %>% as.data.frame() %>% unique()
-
+  blat_df <- data.frame(id = 1:nrow(blat_df), blat_df)
+  rm(ixn)
+  
+}else{
+  
+  blat_df <- probe_anno %>% 
+    as.data.frame() %>%
+    unique()
 }
 
-blat_df <- data.frame(id = 1:nrow(blat_df), blat_df)
 
 ## Not yet implemented
 
@@ -237,11 +263,11 @@ regexp_for_split <- c()
 
 if(grepl(x = attr(oligo_seqs, "name")[1], pattern = "Probe_Antisense")){
   
-  regexp_for_split <- c("Probe_Antisense_(.*)_.*?_.*", "Probe_Antisense_(.*)_(.*?)_(.*)")
+  regexp_for_split <- c("Probe_Antisense_(.+)_[0-9]+_[0-9]+$", "Probe_Antisense_(.+)_([0-9]+)_([0-9]+)$")
   
 }else if(grepl(x = attr(oligo_seqs, "name")[1], pattern = "Probe_Sense")){
   
-  regexp_for_split <- c("Probe_Sense_(.*)_.*?_.*", "Probe_Sense_(.*)_(.*?)_(.*)")
+  regexp_for_split <- c("Probe_Sense_(.+)_[0-9]+_[0-9]+$", "Probe_Sense_(.+)_([0-9]+)_([0-9]+)$")
   
 }else{
   
@@ -251,7 +277,6 @@ if(grepl(x = attr(oligo_seqs, "name")[1], pattern = "Probe_Antisense")){
 
 rm(anno)
 rm(probe_anno)
-rm(ixn)
 
 
 all_oligos_df <- data.frame(oligo_name = names(oligo_seqs)) %>% as_tibble() %>% 
@@ -259,11 +284,16 @@ all_oligos_df <- data.frame(oligo_name = names(oligo_seqs)) %>% as_tibble() %>%
   mutate(oligo.start = as.numeric(oligo.start), 
          oligo.end = as.numeric(oligo.end))
 
-  
-off_targets_all_thresholds <- list()
 
-match_seqs <- seq(from = min(blat_df$matches), to = oligo_length, length.out = 10)
-match_seqs <- seq(from = min(blat_df$matches), to = oligo_length, by = 5)
+off_targets_all_thresholds <- list()
+match_seqs <- c()
+
+if(oligo_length < 50){
+  match_seqs <- seq(from = min(blat_df$matches), to = oligo_length, length.out = 5)
+}else{
+  match_seqs <- seq(from = min(blat_df$matches), to = oligo_length, by = 10)
+}
+
 
 oligo_names <- names(oligo_seqs)
 
@@ -276,32 +306,32 @@ for(match_cut_ind in seq_along(match_seqs)){
   max_match <- oligo_length
   
   blat_df_sub <- blat_df %>% dplyr::filter(matches >= match_threshold) %>%
-                             dplyr::mutate(gene = genesFromOligos(oligo_name))
+    dplyr::mutate(gene = genesFromOligos(oligo_name))
   
   off_target_df <- blat_df %>%
-                   dplyr::mutate(gene = genesFromOligos(oligo_name)) %>% 
-                   group_by(oligo_name, gene) %>% 
-                   dplyr::count() %>% arrange(-n)
+    dplyr::mutate(gene = genesFromOligos(oligo_name)) %>% 
+    group_by(oligo_name, gene) %>% 
+    dplyr::count() %>% arrange(-n)
   
   oligo_names <- names(oligo_seqs)
   
   n_seqs_per_target <- oligo_names %>% as_tibble() %>% 
-                                       tidyr::extract(col = value, regex = regexp_for_split[1], 
-                                                      into = "gene_name", remove = F) %>% 
-                                       group_by(gene_name) %>%  dplyr::count()
+    tidyr::extract(col = value, regex = regexp_for_split[1], 
+                   into = "gene_name", remove = F) %>% 
+    group_by(gene_name) %>%  dplyr::count()
   
   if(dim(blat_df_sub)[1] != 0){
     
     blat_removed <- blat_df_sub %>% 
-                    group_by(oligo_name, gene) %>% 
-                    summarise(N = n()) %>% filter(N > 1)
+      group_by(oligo_name, gene) %>% 
+      summarise(N = n()) %>% filter(N > 1)
     
     oligo_names <- oligo_names[!oligo_names %in% blat_removed$oligo_name]
   }
   
   n_filtered_per_target <- oligo_names %>% as_tibble() %>% 
-                           tidyr::extract(col = value, regex = regexp_for_split[1], into = "gene_name", remove = F) %>% 
-                           group_by(gene_name) %>% dplyr::count()
+    tidyr::extract(col = value, regex = regexp_for_split[1], into = "gene_name", remove = F) %>% 
+    group_by(gene_name) %>% dplyr::count()
   
   n_filtered <- n_seqs_per_target %>% dplyr::inner_join(n_filtered_per_target, by = "gene_name") %>% mutate(filtered = n.x - n.y)
   
@@ -313,6 +343,8 @@ for(match_cut_ind in seq_along(match_seqs)){
   blat_tbl_sub <- data.frame(oligo_name = oligo_names, 
                              oligo.start = pos[,1], oligo.end = pos[,2]) %>% 
     tidyr::extract(col = oligo_name, regex = regexp_for_split[1], into = "gene_name", remove = F)
+  
+  blat_tbl_sub <- blat_tbl_sub %>% filter(gene_name %in% target_seqs$target_name)
   
   # Create porbeset with unique coverage along the targets
   target_lists <- lapply(split(blat_tbl_sub, f = blat_tbl_sub$gene_name), function(x) {rownames(x) <- c(); x})
@@ -396,19 +428,25 @@ for(match_cut_ind in seq_along(match_seqs)){
     })
     
     off_targets_per_set[[j]] <- lapply(probe_sets[[j]], function(tab){
-                                      off_targets_per_set <- off_target_df %>% filter(oligo_name %in% (tab %>% pull(oligo_name))) %>% as.data.frame()
-                                      stats <- c(mean_off = sum(off_targets_per_set$n)/nrow(tab), 
-                                        max_off = max(off_targets_per_set$n),
-                                        oligos_w_off = nrow(off_targets_per_set))
-                                      stats
-                                })
+      off_targets_per_oligo <- off_target_df %>% filter(oligo_name %in% (tab %>% pull(oligo_name))) %>% as.data.frame()
+      
+      if(dim(off_targets_per_oligo)[1] == 0){
+        off_targets_per_oligo <- data.frame("oligo_name" = tab$oligo_name, 
+                                            "gene" = tab$gene,
+                                            "n" = 1)
+      }
+      
+      stats <- c(mean_off = sum(off_targets_per_oligo$n)/nrow(tab), 
+                 max_off = max(off_targets_per_oligo$n),
+                 oligos_w_off = nrow(off_targets_per_oligo))
+      stats
+    })
     
     off_targets_per_set_set[[j]] <- lapply(probe_sets[[j]], function(tab){
-                                    off_targets_per_set <- off_target_df %>% dplyr::rename(gene_name = gene) %>%
-                                                           filter(oligo_name %in% (tab %>% pull(oligo_name))) %>% 
-                                                           as.data.frame()
-                                    off_targets_per_set
-                                })
+      off_target_df %>% dplyr::rename(gene_name = gene) %>%
+        filter(oligo_name %in% (tab %>% pull(oligo_name))) %>% 
+        as.data.frame()
+    })
     
     sets_for_gap_fillings[[j]] <- list()
     
@@ -418,56 +456,90 @@ for(match_cut_ind in seq_along(match_seqs)){
     counter_probe_set <- 0
     target_gene_name <- unique(probe_sets[[j]][[1]]$gene_name)
     set_ind <- 0
-
+    
     
     lapply(probe_sets[[j]], function(single_probe_set){
-
+      
       counter_probe_set <<- counter_probe_set + 1
       set_ind <<- set_ind + 1
-
+      
       pos <- as.numeric(unlist(apply(single_probe_set[,c(-1,-2)], 1, function(cont) seq(from = cont[1], to = cont[2]))))
-
+      
       plot_dir <- file.path(super_plot_dir, target_gene_name)
-
+      
       if(!file.exists(plot_dir)){
         dir.create(plot_dir)
       }
-
-      target_boundaries <- c(0, target_seqs %>% filter(grepl(x = target_name, pattern = target_gene_name, fixed = T)) %>% pull(target_length))
-
+      
+      target_boundaries <- c(0, target_seqs %>% filter(target_name == target_gene_name) %>% pull(target_length))
+      
       gaps_vec <- gaps_path(x = single_probe_set[,3:4], x_end = target_boundaries[2])
-
+      
       gaps_df <- data.frame(start = c(0, single_probe_set[,4]), end = c(single_probe_set[,3], target_boundaries[2]-1)) %>% mutate(gap = end - start)
       
       # find gaps longer than fragment size and search for oligos to fill them
       
       gaps2fill <- gaps_df %>% filter(gap > fragment_size)
       
+      
       oligos2fill <- unlist(apply(gaps2fill, 1, function(gap_elem){
         
-        pos2fill <- all_oligos_df %>% filter(target_name %in% target_gene_name, oligo.start >= gap_elem[1], oligo.end <= gap_elem[2])
+        pos2fill <- all_oligos_df %>% filter(target_name %in% target_gene_name, oligo.start >= as.numeric(gap_elem[1]), oligo.end <= as.numeric(gap_elem[2]))
         dists <- t(apply(as.matrix(pos2fill[,-c(1:2)]), 1, function(elem1){
           
           (as.numeric(elem1[2]) - as.numeric(pos2fill %>% pull(oligo.start)) +1)
           
         }))
-        rownames(dists) <- colnames(dists) <- pos2fill$oligo_name
         
-        final_end <- -1
-        row_i <- 1
-        oligo_set <- rownames(dists)[row_i]
-        while(final_end < gap_elem[2] - oligo_length - 1){
-          row_i <- min(which(dists[row_i,] <= 0))
-          oligo_set <- c(oligo_set, rownames(dists)[row_i])
-          final_end <- pos2fill %>% filter(oligo_name == rownames(dists)[row_i]) %>% pull(oligo.end)
+        rownames(dists) <- colnames(dists) <- pos2fill$oligo_name
+        oligo_set <- NULL
+        
+        if(length(dists) != 0){
+          
+          final_end <- -1
+          row_i <- 1
+          oligo_set <- rownames(dists)[row_i]
+          
+          while(final_end < gap_elem[2] - oligo_length - 1){
+            
+            is_dist_less_zero <- dists[row_i,] <= 0
+            
+            if(any(is_dist_less_zero)){
+              
+              row_i <- min(which(is_dist_less_zero))
+              
+            }else{
+              
+              # Check if there is an overlapping oligo sequence which could be used
+              row_i_new <- which.min(dists[row_i,])
+              
+              # Check if only possible oligo that could be used was already picked up
+              # if so we reached the end of possible oligo seqs and loop ends
+              
+              if(rownames(dists)[row_i] == rownames(dists)[row_i_new]){
+                
+                break
+                
+              }else{
+                
+                row_i <- row_i_new
+                
+              }
+            }
+            
+            oligo_set <- c(oligo_set, rownames(dists)[row_i])
+            
+            final_end <- pos2fill %>% filter(oligo_name == rownames(dists)[row_i]) %>% pull(oligo.end)
+          }
         }
+        
         oligo_set
       }))
       
       sets_for_gap_fillings[[j]][[set_ind]] <<- oligos2fill
       
       coverage <- (as.numeric(max_match) * nrow(single_probe_set)) / target_boundaries[2]
-
+      
       measures_tbl[row_count, ] <<- list(target_gene_name, counter_probe_set, match_threshold, n_filtered %>% filter(gene_name == target_gene_name) %>% pull(filtered), coverage,
                                          length(gaps_vec > 0), sum(gaps_vec[gaps_vec > 0]), min(gaps_vec), max(gaps_vec),
                                          mean(gaps_vec), sd(gaps_vec))
@@ -494,37 +566,39 @@ for(match_cut_ind in seq_along(match_seqs)){
       }
       
       single_probe_set_off_cov <- probe_sets[[j]][[probe_off_index]] %>% 
-                                  dplyr::full_join(off_targets_per_set_set[[j]][[probe_off_index]]) %>%
-                                  dplyr::mutate(n = replace(n, is.na(n), 0))
+        dplyr::full_join(off_targets_per_set_set[[j]][[probe_off_index]]) %>%
+        dplyr::mutate(n = replace(n, is.na(n), 0))
       
-
+      
       oligo_set_seqs <- sapply(oligo_seqs[single_probe_set_off_cov$oligo_name], function(seq_elem) seqinr::c2s(unlist(seq_elem)))
       
       off_target_df_sets[[probe_off_index]] <- tibble(oligo_name = names(oligo_set_seqs), sequence = oligo_set_seqs) %>% 
-            inner_join(single_probe_set_off_cov, by = "oligo_name") %>% 
-            mutate(Set_ID = probe_off_index) %>%
-            dplyr::rename(target_seq = gene_name,
-                          `#off targets` = n) %>%
-            dplyr::select(-oligo.start, -oligo.end) %>% 
-            dplyr::relocate(target_seq, Set_ID, oligo_name, `#off targets`, sequence)
+        inner_join(single_probe_set_off_cov, by = "oligo_name") %>% 
+        mutate(Set_ID = probe_off_index) %>%
+        dplyr::rename(target_seq = gene_name,
+                      `#off targets` = n) %>%
+        dplyr::select(-oligo.start, -oligo.end) %>% 
+        dplyr::relocate(target_seq, Set_ID, oligo_name, `#off targets`, sequence)
       
       
       fasta_file_name <- file.path(sub_fasta_dir, paste0(target_gene_name, "_Set_", probe_off_index, ".fa"))
-      seqinr::write.fasta(sequences = oligo_set_seqs, file.out = fasta_file_name, names = attr(oligo_set_seqs, "name"))
+      seqinr::write.fasta(sequences = oligo_seqs[single_probe_set_off_cov$oligo_name], 
+                          file.out = fasta_file_name, 
+                          names = names(oligo_seqs[single_probe_set_off_cov$oligo_name]))
       
       
       pos <- as.numeric(unlist(apply(single_probe_set_off_cov[,c(-1,-2)], 1, function(cont) rep(seq(from = cont[1], to = cont[2]), each = cont[3]))))
       
       target_boundaries <- c(0, target_seqs %>% 
-                                filter(grepl(x = target_name, pattern = target_gene_name, fixed = T)) %>% 
-                                pull(target_length)
-                             )
-  
+                               filter(target_name == target_gene_name) %>% 
+                               pull(target_length)
+      )
+      
       title_text <- paste0(target_gene_name, " [", dim(single_probe_set_off_cov)[1]," oligos]")
       
       subtitle_text <- paste0("expected off-targets: ", format(off_targets_per_set[[j]][[probe_off_index]][1], digits = 2),
-                             " | max off-targets: ", off_targets_per_set[[j]][[probe_off_index]][2],
-                             " | #oligos with off-targets: ", off_targets_per_set[[j]][[probe_off_index]][3])
+                              " | max off-targets: ", off_targets_per_set[[j]][[probe_off_index]][2],
+                              " | #oligos with off-targets: ", off_targets_per_set[[j]][[probe_off_index]][3])
       
       off_target_plot <- as.data.frame(table(factor(pos,levels = seq(target_boundaries[1],target_boundaries[2], 1)))) %>% 
         ggplot2::ggplot(ggplot2::aes(x = as.numeric(Var1), y =  Freq)) +
@@ -540,7 +614,9 @@ for(match_cut_ind in seq_along(match_seqs)){
                        plot.margin = ggplot2::margin(b = -0.5,unit = "cm"))
       
       
-      coverage_plot <- as.data.frame(table(factor(pos,levels = seq(target_boundaries[1],target_boundaries[2], 1)))) %>% dplyr::mutate(Freq = dplyr::if_else(Freq == 0, true = 0, false = 1)) %>% 
+      pos_cov <- as.numeric(unlist(apply(single_probe_set_off_cov[,c(-1,-2)], 1, function(cont) rep(seq(from = cont[1], to = cont[2]), each = ifelse(cont[3] == 0, 1, cont[3])))))
+      
+      coverage_plot <- as.data.frame(table(factor(pos_cov,levels = seq(target_boundaries[1],target_boundaries[2], 1)))) %>% dplyr::mutate(Freq = dplyr::if_else(Freq == 0, true = 0, false = 1)) %>% 
         ggplot2::ggplot(ggplot2::aes(x = as.numeric(Var1), y =  Freq)) +
         ggplot2::geom_bar(stat = "identity", fill = "black", col = "black") + 
         ggplot2::scale_x_continuous(expand = c(0, 0, 0, 0), name = "target sequence position", breaks = scales::pretty_breaks(n = 10)) +
@@ -563,10 +639,13 @@ for(match_cut_ind in seq_along(match_seqs)){
           dplyr::inner_join(off_target_df, by = c("oligo_name" = "oligo_name")) %>%
           dplyr::mutate(n = replace(n, is.na(n), 0)) %>% dplyr::select(-gene)
         
-        oligo_set_seqs_with_filled_oligos <- sapply(oligo_seqs[single_probe_set_off_cov_with_filled_oligos$oligo_name], function(seq_elem) seqinr::c2s(unlist(seq_elem)))
         
         fasta_file_name <- file.path(sub_fasta_dir, paste0(target_gene_name, "_Set_", probe_off_index, "_filled_gaps_with_off_target_oligos.fa"))
-        seqinr::write.fasta(sequences = oligo_set_seqs_with_filled_oligos, file.out = fasta_file_name, names = attr(oligo_set_seqs_with_filled_oligos, "name"))
+        seqinr::write.fasta(sequences = oligo_seqs[single_probe_set_off_cov_with_filled_oligos$oligo_name], 
+                            file.out = fasta_file_name, 
+                            names = names(oligo_seqs[single_probe_set_off_cov_with_filled_oligos$oligo_name]))
+        
+        oligo_set_seqs_with_filled_oligos <- sapply(oligo_seqs[single_probe_set_off_cov_with_filled_oligos$oligo_name], function(seq_elem) seqinr::c2s(unlist(seq_elem)))
         
         
         off_target_df_sets_with_gap_fillings[[probe_off_index]] <- tibble(oligo_name = names(oligo_set_seqs_with_filled_oligos), sequence = oligo_set_seqs_with_filled_oligos) %>% 
@@ -601,7 +680,7 @@ for(match_cut_ind in seq_along(match_seqs)){
         
       }
       
-     
+      
     }
     
     names(off_target_df_sets) <- paste0("Set_", seq_along(probe_sets[[j]]))
@@ -623,7 +702,7 @@ names(off_targets_all_thresholds) <- match_seqs
 
 
 off_targets_all_thresholds_list <- lapply(off_targets_all_thresholds, function(list_cutoff){
-
+  
   cutoff_genes_list <- list()
   for(i in seq_along(list_cutoff)){
     cutoff_genes_list[[i]] <- do.call("rbind", list_cutoff[[i]]) %>% as_tibble() %>% mutate(gene_name = names(list_cutoff)[i])
