@@ -49,8 +49,39 @@ public class Sequence {
 			
 		}else{
 			
-			throw new NullPointerException("Attriubute seq from Sequence object is null!");
+			throw new NullPointerException("Attribute seq from Sequence object is null!");
 		
+		}
+	}
+
+	private char getComplement(char current) {
+		
+		switch(current){
+		case 'A': return 'T';
+		case 'C': return 'G';
+		case 'G': return 'C';
+		case 'T': return 'A';
+		case 'U': return 'A';
+		case 'N': return 'N';
+		case 'Y': return 'R';
+		case 'R': return 'Y';
+		case 'W': return 'W';
+		case 'S': return 'S';
+		case 'K': return 'M';
+		case 'M': return 'K';
+		case 'a': return 't';
+		case 'c': return 'g';
+		case 'g': return 'c';
+		case 'u': return 'a';
+		case 't': return 'a';
+		case 'n': return 'n';
+		case 'y': return 'r';
+		case 'r': return 'y';
+		case 'w': return 'w';
+		case 's': return 's';
+		case 'k': return 'm';
+		case 'm': return 'k';
+		default: throw new RuntimeException("Illegal nucleotide");
 		}
 	}
 	
@@ -61,29 +92,15 @@ public class Sequence {
 			
 			try{
 				
-				String compSeq = this.seq.toUpperCase(); 
+				StringBuilder build = new StringBuilder();
 				
-				compSeq = compSeq.replaceAll("A", "t");
-				compSeq = compSeq.replaceAll("C", "g");
-				compSeq = compSeq.replaceAll("G", "c");
-				compSeq = compSeq.replaceAll("T", "a");
+				for(int i = 0; i < this.seq.length(); i++){
+					char orig = this.seq.charAt(i);
+					char compl = this.getComplement(orig);
+					build.append(compl);
+				}
 				
-				compSeq = compSeq.replaceAll("Y", "r");
-				compSeq = compSeq.replaceAll("R", "y");
-				compSeq = compSeq.replaceAll("W", "w");
-				compSeq = compSeq.replaceAll("S", "s");
-				compSeq = compSeq.replaceAll("K", "m");
-				compSeq = compSeq.replaceAll("M", "k");
-				
-				compSeq = compSeq.replaceAll("D", "h");
-				compSeq = compSeq.replaceAll("H", "d");
-				compSeq = compSeq.replaceAll("B", "v");
-				compSeq = compSeq.replaceAll("V", "b");
-				compSeq = compSeq.replaceAll("X", "x");
-				compSeq = compSeq.replaceAll("N", "n");
-				
-				
-				compSeq = compSeq.toUpperCase();
+				String compSeq = build.toString();
 				
 				return new Sequence(this.id, compSeq);
 				
@@ -97,10 +114,11 @@ public class Sequence {
 			
 		}else{
 			
-			throw new NullPointerException("Attriubute seq from Sequence object is null!");
+			throw new NullPointerException("Attribute seq from Sequence object is null!");
 		
 		}
 	}
+
 	
 	public Sequence getReverseComplement(){
 		
@@ -343,5 +361,23 @@ public class Sequence {
 	    
 	    return new Sequence(this.id, proteinSeq.toString());
 
+	}
+
+	public Sequence(String sequence) {
+		this.seq = sequence;
+	}
+
+	public String toUpperCase() {
+		return seq.toUpperCase();
+	}
+
+	public Sequence getSubSequence(int start, int end) {
+
+		return new Sequence(this.seq.substring(start, end));
+	}
+
+	public int length() {
+		
+		return this.getSeq().length();
 	}
 }
