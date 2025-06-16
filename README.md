@@ -1,29 +1,39 @@
+---
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
 # ProbeSHIFTR
 
-Oligonucleotide probe designer for **S**elective RNase-**H**-mediated **I**nteractome **F**raming for **T**arget **R**NA Regions (SHIFTR)
+Oligonucleotide probe designer for **S**elective RNase-**H**-mediated
+**I**nteractome **F**raming for **T**arget **R**NA Regions (SHIFTR)
 
 ### Design of oligo sequences for the publication
 
-**SHIFTR enables the unbiased identification of proteins bound to specific RNA regions in live cells**.
+**SHIFTR enables the unbiased identification of proteins bound to
+specific RNA regions in live cells**.
 
-Jens Aydin, Alexander Gabel, Sebastian Zielinski, Sabina Ganskih, Nora Schmidt, Christina R. Hartigan, Monica Schenone, Steven A. Carr, and Mathias Munschauer.
-
+Jens Aydin, Alexander Gabel, Sebastian Zielinski, Sabina Ganskih, Nora
+Schmidt, Christina R. Hartigan, Monica Schenone, Steven A. Carr, and
+Mathias Munschauer.
 
 ## Requirements
 
-- JavaSE-14
-- R (tested on R-4.2.1)
-- required R packages:
-	- readr
-	- data.table
-	- rtracklayer
-	- GenomicRanges
-	- IRanges
-	- tidyr
-	- seqinr
-	- ggplot2
-- install BLAT
-- java, R, BLAT and all required  packages can be found in `environmental.yaml`
+-   JavaSE-14
+-   R (tested on R-4.2.1)
+-   required R packages:
+    -   readr
+    -   data.table
+    -   rtracklayer
+    -   GenomicRanges
+    -   IRanges
+    -   tidyr
+    -   seqinr
+    -   ggplot2
+-   install BLAT
+-   java, R, BLAT and all required packages can be found in
+    `environmental.yaml`
 
 ## Installation
 
@@ -37,46 +47,61 @@ Acitvate ProbeSHIFTR environment:
 
 ## Examples
 
-**Create 25nt long oligos for 7sk and u1**
+### Create 25nt long oligos for 7sk and u1
 
-For off-target detection, perform BLAT comparisons against a single sequence:
+---
 
+#### Before running the examples
+
+Decompress the sequence file in seq_db.
+
+```         
+gunzip test/seq_db/fasta/chr1.fa.gz
 ```
+
+------------------------------------------------------------------------
+
+#### 1.) Perform BLAT comparisons against a single sequence
+
+```         
 java -jar jar/ProbeSHIFTR.jar -d test/seq_db/fasta/chr1.fa 
                               -t test/test_input/test_targets.fa 
                               -l 25
                               -o test/test_output
 ```
 
----
+------------------------------------------------------------------------
 
-For off-target detection, perform BLAT comparisons against a directory of uncompressed fasta files:
+#### 2.) Perform BLAT comparisons against a directory of uncompressed fasta files
 
-```
+```         
 java -jar jar/ProbeSHIFTR.jar -D test/seq_db/fasta/ 
                               -t test/test_input/test_targets.fa 
                               -l 25 
                               -o test/test_output
 ```
 
----
+------------------------------------------------------------------------
 
-**Note:**
-In the upper two commands there are no `u1` oligos left because intergenic 
-regions are considered as off-targets.
-When comparing against large genomic sequences without any annotation of exonic regions, 
-off-targets are defined in intergenic regions which might be too general for 
-certain applications (target sequences of RNA-binding proteins).
+**Note:** In the upper two commands there are no `u1` oligos left
+because intergenic regions are considered as off-targets. When comparing
+against large genomic sequences without any annotation of exonic
+regions, off-targets are defined in intergenic regions which might be
+too general for certain applications (target sequences of RNA-binding
+proteins).
 
----
+------------------------------------------------------------------------
 
-If the fasta files in the `seq_db` are genome sequences, such as chr1 of HG38, 
-you can add annotation data in `gtf` format. Thus, the filtering of off-targets 
-takes only hits into account that overlap with exonic regions. If the gtf contains
-`gene_biotype "protein_coding";`, off-targets are only defined by oligos showing
-similarities to protein-coding exons.
+#### 3.) Perform BLAT comparisons against exonic regions (recommended)
 
-```
+If the fasta files in the `seq_db` are genome sequences, such as
+chr1 of HG38, you can add annotation data in `gtf` format. Thus, the
+filtering of off-targets takes only hits into account that overlap with
+exonic regions. If the gtf contains `gene_biotype "protein_coding";`,
+off-targets are only defined by oligos showing similarities to
+protein-coding exons.
+
+```         
 java -jar jar/ProbeSHIFTR.jar -D test/seq_db/fasta/ 
                               -t test/test_input/test_targets.fa 
                               -l 25 
@@ -84,11 +109,11 @@ java -jar jar/ProbeSHIFTR.jar -D test/seq_db/fasta/
                               -o test/test_output
 ```
 
----
+------------------------------------------------------------------------
 
 ## Usage
 
-```
+```         
 usage: java -jar ProbeSHIFTR.jar [-bf <arg>] [-blat <arg>] [-cw] [-d
        <arg>] [-D <arg>] [-f <arg>] [-g <arg>] [-h] [-irk] [-l <arg>]
        [-log] [-match <arg>] [-n <arg>] [-ncpf] [-nm <arg>] [-o <arg>] [-p
