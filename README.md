@@ -1,9 +1,3 @@
----
-editor_options: 
-  markdown: 
-    wrap: 72
----
-
 # ProbeSHIFTR
 
 Oligonucleotide probe designer for **S**elective RNase-**H**-mediated
