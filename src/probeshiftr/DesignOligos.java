@@ -15,6 +15,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -42,13 +44,14 @@ public class DesignOligos {
 //		options.addOption("i", "identity-cutoff", true, "filter oligos based on matches in BLAT search");
 		
 		options.addOption("bf", "bases2filter", true, "bases to filter for polybases in oligos (Default: ACGT)");
-		options.addOption("rmf", "repeat-masking-format", true, "repeats masked with upper or lower cases or no masking in data (lower, upper; Default: lower)");
+		options.addOption("rmf", "repeat-masking-format", true, "are repeats masked wth lower cases (Default: true)");
 		options.addOption("nm", "n-repeats", true, "relative freuqnecies of N repeats in oligos (Default: 0.001)");
 		options.addOption("r", "max-repeats", true, "maximal percetage of repeats (Default: 0.07)");
 		options.addOption("n", "include-n", true, "include N in repeat filtering (Default: true)");
 		
 		options.addOption("pbl", "polybase-length", true, "relative length of polybases within oligo (Default: 0.8)");
 		options.addOption("rbl", "repeat-length-polybases", true, "length of polybase repreats within sequences (Default: 15)");
+		options.addOption("ncpf", "no-complexity-filter", false, "set of complexity filter (Default: set on)");
 		options.addOption("cw", "check-within-target", false, "check for homologies within target sequence (Default: false)");
 		options.addOption("irk", "include-repetitive-kmers", false, "include repetitive kmers (Default: false)");
 		options.addOption("f", "fragment-size", true, "if gaps between oligos are longer than the fragment size then oligos with too many off-targets are used to fill these gaps (Default: 200)");
@@ -58,6 +61,7 @@ public class DesignOligos {
 		options.addOption("blat", "blat-path", true, "path to BLAT executable (Default: assumed to be in the environmental variable PATH)");
 		options.addOption("rscript", "rscript-path", true, "path to Rscript executable (Default: assumed to be in the environmental variable PATH)");
 		options.addOption("log", "log-file", false, "write log file to evaluate sequence complexity filters (Default: false)");
+		options.addOption("v", "verbose", false, "Print debugging output (Default: false)");
 		options.addOption("h", "help", false, "print this message");
 
 		CommandLineParser parser = new DefaultParser();
@@ -72,6 +76,7 @@ public class DesignOligos {
 		boolean check_within = false;
 		boolean include_rep_kmers = false;
 		boolean write_log = false;
+		boolean verbose = false;
 		
 		// BLAT prarameters
 		int minMatch = 1; 
@@ -83,7 +88,10 @@ public class DesignOligos {
 		double maxRepeatPercentage = 0.07;
 		double maxRepeatNPercentage = 0.001;
 //		double complexityCutoff = 0.08;
-	
+		
+		// Parameter complexity filtering
+		boolean no_complexity_filter = false;
+		
 		// Parameter poly base filtering
 		String bases2Filter = "ACTG";
 		double relativePolyBaseLength = 0.8;
@@ -108,6 +116,8 @@ public class DesignOligos {
 		String blat_dir = null; 
 		
 		String R_bin_path = null;
+		
+		ProgramFinder prgFinder = new ProgramFinder();
 		
 		try {
 			CommandLine line = parser.parse(options, args);
@@ -160,7 +170,8 @@ public class DesignOligos {
 				}
 			}else {
 				
-				blatPath = "blat";
+				blatPath = prgFinder.findPath("blat");
+				
 				System.out.println("Using default BLAT path: " + blatPath);
 				
 				File file = new File(blatPath);
@@ -186,7 +197,7 @@ public class DesignOligos {
 				}
 			}else {
 				
-				R_bin_path = "/usr/local/bin/Rscript";
+				R_bin_path = prgFinder.findPath("Rscript"); //"/usr/local/bin/Rscript";
 				System.out.println("Using default Rscript path: " + R_bin_path);
 				
 				File file = new File(R_bin_path);
@@ -291,7 +302,7 @@ public class DesignOligos {
 				maxRepeatPercentage = Double.parseDouble(line.getOptionValue("r"));
 				
 			}
-
+			
 			if (line.hasOption("f")) {
 				
 				fragment_size = Integer.parseInt(line.getOptionValue("f"));
@@ -307,6 +318,12 @@ public class DesignOligos {
 			if (line.hasOption("rbl")) {
 				
 				relativePolyBaseLength = Double.parseDouble(line.getOptionValue("rbl"));
+				
+			}
+			
+			if (line.hasOption("ncpf")) {
+				
+				no_complexity_filter = true;
 				
 			}
 			
@@ -342,6 +359,10 @@ public class DesignOligos {
 				
 			}
 
+			if (line.hasOption("v")) {
+				
+				verbose = true;
+			}
 			
 			if (line.hasOption("g")) {
 				
@@ -425,11 +446,38 @@ public class DesignOligos {
 				
 				boolean repeat = rf.filterOligo(kmer);
 				boolean repeatN = rfn.filterOligo(kmer);
-				boolean complex = cf.filterOligo(kmer);
 				boolean poly = pf.filterOligo(kmer);
 //				boolean lowComplex = lf.filterOligo(kmer);
-			
-				boolean filterOligo = repeat || repeatN || complex || poly;// || lowComplex;
+				boolean complex = false;
+				boolean filterOligo = false;
+				
+				// Use complexity filter
+				if(! no_complexity_filter) {
+
+					complex = cf.filterOligo(kmer);
+				}
+				
+				filterOligo = filterOligo || repeat || repeatN || complex || poly;
+				
+				if(write_log) {
+					
+					int startIndex = -1;
+					String startIndices = null;
+					String endIndices = null;
+					
+					ArrayList<Integer> oligoOccurencesArray = new ArrayList<Integer>();
+					
+					while((startIndex = faSeq.indexOf(kmer, startIndex +1)) != -1) {
+						oligoOccurencesArray.add(startIndex);
+					}
+					
+					final int oligo_length2add = oligo_length;
+
+					startIndices = oligoOccurencesArray.stream().map(String::valueOf).collect(Collectors.joining(";"));
+					endIndices = oligoOccurencesArray.stream().map(n -> String.valueOf(n + oligo_length2add - 1)).collect(Collectors.joining(";"));
+						
+					out_log.write(seq + "\t" + kmer + "\t" + startIndices + "\t" + endIndices + "\t"+ repeat + "\t" + repeatN + "\t" + complex + "\t" + poly + "\n");
+				}
 				
 				if(filterOligo) {
 
@@ -461,9 +509,9 @@ public class DesignOligos {
 
 							}
 							
-							if(write_log) {
+							/*if(write_log) {
 								out_log.write(seq + "\t" + kmer + "\t" + startIndex + "\t" + (startIndex + oligo_length - 1) + "\t"+ repeat + "\t" + repeatN + "\t" + complex + "\t" + poly + "\n");
-							}
+							}*/
 							
 							Sequence kmerProbe = new Sequence(kmerId, final_oligo);
 							
@@ -490,9 +538,11 @@ public class DesignOligos {
 
 						}
 						
-						if(write_log) {
+						/*
+						 if(write_log) {
 							out_log.write(seq + "\t" + kmer + "\t" + startIndex + "\t" + (startIndex + oligo_length - 1) + "\t"+ repeat + "\t" + repeatN + "\t" + complex + "\t" + poly + "\n");
 						}
+						*/
 						
 						Sequence kmerProbe = new Sequence(kmerId, final_oligo);
 							
@@ -617,6 +667,17 @@ public class DesignOligos {
 			 
 			  threadPool.shutdown();
 
+			 try {
+		       // Wait for all tasks to complete or timeout after a specified duration
+				 while (!threadPool.awaitTermination(10, TimeUnit.SECONDS)) {
+		                System.out.println("Waiting for all tasks to finish...");
+		            }
+		     } catch (InterruptedException e) {
+		    	 // Re-interrupt the current thread if interrupted during awaitTermination
+		    	 threadPool.shutdownNow();
+		         Thread.currentThread().interrupt();
+		     }
+			  
 			 Thread.sleep(10000);
 			 System.out.println("Finished!");
 			 System.out.println("BLAT results stored at: " + blat_dir);
@@ -626,12 +687,16 @@ public class DesignOligos {
 			  System.out.println(e.getMessage());
 			} 
 		
+		
+		
+		
+		
 		/** Run Rscript to calculate finale oligo sets and create analysis plots */
 		
 		Rinterface blProcess = new Rinterface(R_bin_path, path_to_Rscript, blat_dir, fasta_out_dir, plot_dir, 
-											  oligo_fasta_file, oligo_length, target_fasta_file, check_within, fragment_size, 
-											  transcript_annotation_files);
-		blProcess.runR();
+											  oligo_fasta_file, oligo_length, target_fasta_file, check_within, 
+											  fragment_size, transcript_annotation_files);
+		blProcess.runR(verbose);
 	}
 
 }
