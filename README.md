@@ -51,11 +51,20 @@ Acitvate ProbeSHIFTR environment:
 
 ---
 
-#### Before running the examples
+#### Download `chr1.fa.gz` from UCSC
 
-Decompress the sequence file in seq_db.
-
+**Using curl**
 ```         
+curl -L -o test/seq_db/fasta/chr1.fa.gz https://hgdownload.soe.ucsc.edu/goldenPath/hg38/chromosomes/chr1.fa.gz
+```
+
+**or wget**
+```
+wget -P  test/seq_db/fasta https://hgdownload.soe.ucsc.edu/goldenPath/hg38/chromosomes/chr1.fa.gz
+```
+
+Decompress the sequence file in **seq_db**
+```
 gunzip test/seq_db/fasta/chr1.fa.gz
 ```
 
